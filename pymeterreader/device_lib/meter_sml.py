@@ -6,7 +6,7 @@ from time import time
 import os
 import re
 from threading import Lock
-from logging import info, debug, error
+from logging import info, debug, error, warning
 import typing as tp
 import serial
 from sml import SmlBase
@@ -130,11 +130,16 @@ class SmlReader(BaseReader):
                 self.__parse(elem, parsed)
         elif isinstance(sml_frame, dict):
             if 'messageBody' in sml_frame:
-                var_list = sml_frame['messageBody'].get('valList', [])
-                for variable in var_list:
-                    if 'unit' not in variable and strip(self.meter_id) in strip(str(variable.get('value', ''))):
-                        parsed.meter_id = variable.get('value')
-                        break
+                sml_list = sml_frame['messageBody'].get('valList', [])
+                for sml_entry in sml_list:
+                    # Try reading the meter_id from sml entries without unit description and OBIS code for meter id
+                    if 'unit' not in sml_entry and '1-0:0.0.9' in sml_entry.get('objName', ''):
+                        read_meter_id = strip(str(sml_entry.get('value', '')))
+                        if read_meter_id == self.meter_id:
+                            parsed.meter_id = sml_entry.get('value')
+                            break
+                        else:
+                            warning(f"Meter ID in SML frame {read_meter_id} does not match expected ID {self.meter_id}")
                 if parsed.meter_id:
-                    parsed.channels.extend(var_list)
+                    parsed.channels.extend(sml_list)
         return parsed
