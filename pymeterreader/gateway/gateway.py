@@ -12,6 +12,7 @@ class BaseGateway(ABC):
     """
 
     def __init__(self, **kwargs):
+        self.interpolate = False
         if kwargs:
             warning(f'Unknown parameter{"s" if len(kwargs) > 1 else ""}:'
                     f' {", ".join(kwargs.keys())}')
