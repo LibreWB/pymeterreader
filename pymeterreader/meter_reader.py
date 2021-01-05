@@ -46,7 +46,7 @@ def map_configuration(config: dict) -> tp.List[MeterReaderNode]:  # noqa MC0001
                 gateway = VolkszaehlerGateway(config.get('middleware').get('middleware_url'),
                                               config.get('middleware').get('interpolate', True))
             else:
-                logging.error(f'Middleware "{config.get("middleware").get("type")}" not supported!')
+                logging.error("Middleware %s not supported!", config.get("middleware").get("type"))
                 gateway = None
             if gateway:
                 for device in config.get('devices').values():
@@ -60,7 +60,7 @@ def map_configuration(config: dict) -> tp.List[MeterReaderNode]:  # noqa MC0001
                     elif protocol == 'BME280':
                         reader = Bme280Reader(meter_id, **device)
                     else:
-                        logging.error(f'Unsupported protocol {protocol}')
+                        logging.error("Unsupported protocol %s", protocol)
                         reader = None
                     sample = reader.poll()
                     if sample is not None:
@@ -82,13 +82,13 @@ def map_configuration(config: dict) -> tp.List[MeterReaderNode]:  # noqa MC0001
                             if meter_reader_node.poll_and_push(sample):
                                 meter_reader_nodes.append(meter_reader_node)
                             else:
-                                logging.error(f"Not registering node for meter id {reader.meter_id}.")
+                                logging.error("Not registering node for meter id %s.", reader.meter_id)
                         else:
-                            logging.warning(f"Cannot register channels for meter {meter_id}.")
+                            logging.warning("Cannot register channels for meter %s.", meter_id)
                     else:
-                        logging.warning(f"Could not read meter id {meter_id} using protocol {protocol}.")
+                        logging.warning("Could not read meter id %s using protocol %s.", meter_id, protocol)
         except KeyError as err:
-            logging.error(f"Error while processing configuration: {err}")
+            logging.error("Error while processing configuration: %s", err)
     else:
         logging.error("Config file is incomplete.")
     return meter_reader_nodes
@@ -103,7 +103,7 @@ class MeterReader:
         signal.signal(signal.SIGINT, self.__keyboard_interrupt_handler)
         config = self.__read_config_file(config_file)
         meter_reader_nodes = map_configuration(config)
-        logging.info(f"Starting {len(meter_reader_nodes)} worker threads...")
+        logging.info("Starting %s worker threads...", len(meter_reader_nodes))
         self.worker_threads = []
         for meter_reader_node in meter_reader_nodes:
             self.worker_threads.append(MeterReaderTask(meter_reader_node))
@@ -131,11 +131,11 @@ class MeterReader:
                 return load(conf_file, Loader=FullLoader)
         except OSError as err:
             if isinstance(err, FileNotFoundError):
-                logging.error(f"File {file_name} can't be found.")
+                logging.error("File %s can't be found.", file_name)
             elif isinstance(err, PermissionError):
-                logging.error(f"Not allowed to read {file_name}.")
+                logging.error("Not allowed to read %s.", file_name)
             else:
-                logging.error(f'Error occurred when trying to open {file_name}.')
+                logging.error("Error occurred when trying to open %s.", file_name)
         return {}
 
 
