@@ -24,7 +24,7 @@ class MeterReaderNode:
         for channel, values in channels.items():
             middleware_entry = gateway.get(values[0])
             if middleware_entry is None:
-                logging.warning(f"Cannot get last entry for {values[0]}")
+                logging.warning("Cannot get last entry for %s", values[0])
                 last_upload = -1
                 last_value = -1
             else:
@@ -96,15 +96,16 @@ class MeterReaderNode:
                                                        now):
                                     self.__channels[cur_channel].last_upload = now
                                     self.__channels[cur_channel].last_value = cur_value
-                                    logging.debug(f"POST {cur_value}{cur_unit} to {self.__channels[cur_channel].uuid}")
+                                    logging.debug("POST %s%s to %s", cur_value, cur_unit,
+                                                  self.__channels[cur_channel].uuid)
                                     posted += 1
                                 else:
-                                    logging.error(f"POST to {self.__channels[cur_channel].uuid} failed!")
+                                    logging.error("POST to %s failed!", self.__channels[cur_channel].uuid)
                             else:
-                                logging.info(f"Skipping upload for {self.__channels[cur_channel].uuid}.")
+                                logging.info("Skipping upload for %s.", self.__channels[cur_channel].uuid)
                                 posted += 1
                 except ValueError:
-                    logging.error(f'Unable to cast {entry.get("value", "N/A")}.')
+                    logging.error("Unable to cast %s.", entry.get("value", "N/A"))
                     continue
         else:
             logging.error("No data from meter. Skipping interval.")
