@@ -2,8 +2,11 @@
 Serial Reader (BaseReader)
 """
 import typing as tp
-import serial
 from abc import abstractmethod
+from logging import warning
+import serial
+import serial.tools.list_ports
+from pymeterreader.device_lib.common import Device
 from pymeterreader.device_lib.base import BaseReader
 
 
@@ -25,7 +28,7 @@ class SerialReader(BaseReader):
         :stopbits: Number of stopbits (Default: 1)
         :kwargs: unparsed parameters
         """
-        super().__init__(meter_id,**kwargs)
+        super().__init__(meter_id, **kwargs)
         self.tty_url = tty
         self._tty_instance = None
         self.baudrate = baudrate
@@ -42,6 +45,8 @@ class SerialReader(BaseReader):
         Initialize serial instance if it is uninitialized
         """
         if self._tty_instance is None:
+            if self.tty_url.startswith("hwgrep://"):
+                warning("Relying on hwgrep for Serial port identification is not recommended!")
             self._tty_instance = serial.serial_for_url(self.tty_url,
                                                        baudrate=self.baudrate,
                                                        bytesize=self.bytesize,
@@ -56,3 +61,28 @@ class SerialReader(BaseReader):
         """
         self._tty_instance.close()
         self._tty_instance = None
+
+    def _detect_serial_devices(self, tty_regex: str) -> tp.List[Device]:
+        """
+        Test all available serial ports for a meter of the SerialReader subtype
+        :param tty_regex: Regex to filter the output from serial.tools.list_ports()
+        """
+        if not tty_regex:
+            tty_regex = ".*"
+        devices: tp.List[Device] = []
+        # Test all matching tty ports
+        for possible_ListPortInfo in serial.tools.list_ports.grep(tty_regex):
+            self.tty_url = possible_ListPortInfo.device
+            try:
+                # Utilize SubClass._discover() to handle implementation specific discovery
+                devices.append(self._discover())
+            except Exception:
+                pass
+        return devices
+
+    @abstractmethod
+    def _discover(self) -> tp.Optional[Device]:
+        """
+        Returns a Device if the class extending SerialReader can discover a meter with the configured settings
+        """
+        raise NotImplementedError("This is just an abstract class.")
