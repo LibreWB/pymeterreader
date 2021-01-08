@@ -33,7 +33,20 @@ class SmlReader(SerialReader):
 
     def poll(self) -> tp.Optional[Sample]:
         """
-        Poll device
+        Public method for polling a Sample from the meter. Enforces that the meter_id matches.
+        :return: Sample, if successful
+        """
+        sample: Sample = self.__fetch_sample()
+        if sample:
+            if sample.meter_id == self.meter_id:
+                return sample
+            else:
+                warning(f"Meter ID in SML frame {sample.meter_id} does not match expected ID {self.meter_id}")
+        return None
+
+    def __fetch_sample(self) -> tp.Optional[Sample]:
+        """
+        Try to retrieve a Sample from any connected meter with the current configuration
         :return: Sample, if successful
         """
         try:
@@ -62,8 +75,7 @@ class SmlReader(SerialReader):
             if len(frame) == 2:
                 sample = self.__parse(frame[1])
                 assert isinstance(sample, Sample), 'Parsing the SML frame did not yield a Sample!'
-                if sample.meter_id is not None:
-                    return sample
+                return sample
         except AssertionError as err:
             error(f'SML parsing failed: {err}')
         except serial.SerialException as err:
@@ -71,16 +83,20 @@ class SmlReader(SerialReader):
         return None
 
     @staticmethod
-    def detect(tty_regex :str = None, **kwargs) -> tp.List[Device]:
+    def detect(tty_regex: str = None, **kwargs) -> tp.List[Device]:
         # Instantiate Reader of and call SerialReader.detect_serial_devices()
-        return SmlReader("unknown","loop://",**kwargs)._detect_serial_devices(tty_regex=tty_regex)
-        #reader.detect_serial_devices(tty_hwgrep_url=tty_hwgrep_url)
+        # pylint: disable=W0212
+        return SmlReader("unknown", "loop://", **kwargs)._detect_serial_devices(tty_regex=tty_regex)
 
     def _discover(self) -> tp.Optional[Device]:
         """
         Returns a Device if the class extending SerialReader can discover a meter with the configured settings
         """
-        raise NotImplementedError("This needs to be done")
+        sample: Sample = self.__fetch_sample()
+        if sample:
+            return Device(sample.meter_id, self.tty_url, self.PROTOCOL, sample.channels)
+        else:
+            return None
 
     def __parse(self, sml_frame: tp.Union[list, dict], parsed=None) -> Sample:
         """
