@@ -5,7 +5,7 @@ Created 2020.10.12 by Oliver Schwaneberg
 from logging import debug, error, warning
 import typing as tp
 import serial
-from sml import SmlBase
+from sml import SmlBase, SmlFrame, SmlListEntry
 from pymeterreader.device_lib.serial_reader import SerialReader
 from pymeterreader.device_lib.common import Sample, strip, Device
 
@@ -38,7 +38,7 @@ class SmlReader(SerialReader):
         """
         sample: Sample = self.__fetch_sample()
         if sample:
-            if sample.meter_id == self.meter_id:
+            if strip(self.meter_id) in strip(sample.meter_id):
                 return sample
             else:
                 warning(f"Meter ID in SML frame {sample.meter_id} does not match expected ID {self.meter_id}")
@@ -95,27 +95,24 @@ class SmlReader(SerialReader):
         sample: Sample = self.__fetch_sample()
         if sample:
             return Device(sample.meter_id, self.tty_url, self.PROTOCOL, sample.channels)
-        else:
-            return None
+        return None
 
-    def __parse(self, sml_frame: tp.Union[list, dict], parsed=None) -> Sample:
+    @staticmethod
+    def __parse(sml_frame: SmlFrame) -> tp.Optional[Sample]:
         """
         Internal helper to extract relevant information
-        :param sml_frame: sml data from parser
-        :param parsed: only for recursive object reference forwarding
+        :param sml_frame: SmlFrame from parser
         """
-        if parsed is None:
-            parsed = Sample()
-        if isinstance(sml_frame, list):
-            for elem in sml_frame:
-                self.__parse(elem, parsed)
-        elif isinstance(sml_frame, dict):
-            if 'messageBody' in sml_frame:
-                var_list = sml_frame['messageBody'].get('valList', [])
-                for variable in var_list:
-                    if 'unit' not in variable and strip(self.meter_id) in strip(str(variable.get('value', ''))):
-                        parsed.meter_id = variable.get('value')
-                        break
-                if parsed.meter_id:
-                    parsed.channels.extend(var_list)
-        return parsed
+        sample = None
+        for sml_mesage in sml_frame:
+            if 'messageBody' in sml_mesage:
+                if not sample:
+                    sample = Sample()
+                sml_list: tp.List[SmlListEntry] = sml_mesage['messageBody'].get('valList', [])
+                for sml_entry in sml_list:
+                    # Try reading the meter_id from sml entries without unit description and OBIS code for meter id
+                    if 'unit' not in sml_entry and '1-0:0.0.9' in sml_entry.get('objName', ''):
+                        sample.meter_id: str = sml_entry.get('value', '')
+                # Add all sml entries to the Sample as channels
+                sample.channels.extend(sml_list)
+        return sample
