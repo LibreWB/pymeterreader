@@ -106,13 +106,14 @@ class SmlReader(SerialReader):
         sample = None
         for sml_mesage in sml_frame:
             if 'messageBody' in sml_mesage:
-                if not sample:
-                    sample = Sample()
                 sml_list: tp.List[SmlListEntry] = sml_mesage['messageBody'].get('valList', [])
-                for sml_entry in sml_list:
-                    # Try reading the meter_id from sml entries without unit description and OBIS code for meter id
-                    if 'unit' not in sml_entry and '1-0:0.0.9' in sml_entry.get('objName', ''):
-                        sample.meter_id: str = sml_entry.get('value', '')
-                # Add all sml entries to the Sample as channels
-                sample.channels.extend(sml_list)
+                if len(sml_list) > 0:
+                    if not sample:
+                        sample = Sample()
+                    for sml_entry in sml_list:
+                        # Try reading the meter_id from sml entries without unit description and OBIS code for meter id
+                        if 'unit' not in sml_entry and '1-0:0.0.9' in sml_entry.get('objName', ''):
+                            sample.meter_id: str = sml_entry.get('value', '')
+                    # Add all sml entries to the Sample as channels
+                    sample.channels.extend(sml_list)
         return sample
