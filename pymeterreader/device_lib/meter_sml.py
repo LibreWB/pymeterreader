@@ -83,10 +83,10 @@ class SmlReader(SerialReader):
         return None
 
     @staticmethod
-    def detect(tty_regex: str = None, **kwargs) -> tp.List[Device]:
-        # Instantiate Reader of and call SerialReader.detect_serial_devices()
+    def detect(**kwargs) -> tp.List[Device]:
+        # Instantiate this Reader class and call SerialReader.detect_serial_devices()
         # pylint: disable=W0212
-        return SmlReader("unknown", "loop://", **kwargs)._detect_serial_devices(tty_regex=tty_regex)
+        return SmlReader("irrelevant", "loop://")._detect_serial_devices(**kwargs)
 
     def _discover(self) -> tp.Optional[Device]:
         """

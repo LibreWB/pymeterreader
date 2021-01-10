@@ -62,20 +62,21 @@ class SerialReader(BaseReader):
         self._tty_instance.close()
         self._tty_instance = None
 
-    def _detect_serial_devices(self, tty_regex: str) -> tp.List[Device]:
+    def _detect_serial_devices(self, tty_regex: str = ".*", **kwargs) -> tp.List[Device]:
         """
-        Test all available serial ports for a meter of the SerialReader subtype
+        Test all available serial ports for a meter of the SerialReader implementation
         :param tty_regex: Regex to filter the output from serial.tools.list_ports()
+        :kwargs: parameters that are passed to the SerialReader implementation that is instantiated to test every port
         """
-        if not tty_regex:
-            tty_regex = ".*"
         devices: tp.List[Device] = []
         # Test all matching tty ports
         for possible_ListPortInfo in serial.tools.list_ports.grep(tty_regex):
-            self.tty_url = possible_ListPortInfo.device
             try:
+                # Create new Instance of the current SerialReader implementation
+                # This ensures that the internal state is reset for every discovery
+                serial_reader_implementation = self.__class__("irrelevant", possible_ListPortInfo.device, **kwargs)
                 # Utilize SubClass._discover() to handle implementation specific discovery
-                devices.append(self._discover())
+                devices.append(serial_reader_implementation._discover())
             except Exception:
                 pass
         return devices
