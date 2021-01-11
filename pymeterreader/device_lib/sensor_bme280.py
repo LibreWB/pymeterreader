@@ -201,7 +201,5 @@ class Bme280Reader(BaseReader):
         for address in addresses:
             channels = Bme280Reader(address).poll().channels
             if channels:
-                devices.append(Device(address,
-                                      protocol='BME280',
-                                      channels=channels))
+                devices.append(Device("", address, "BME280", channels))
         return devices
