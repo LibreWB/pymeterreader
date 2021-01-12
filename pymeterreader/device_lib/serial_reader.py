@@ -3,7 +3,7 @@ Serial Reader (BaseReader)
 """
 import typing as tp
 from abc import abstractmethod
-from logging import warning
+from logging import warning, info, error
 import serial
 import serial.tools.list_ports
 from pymeterreader.device_lib.common import Device
@@ -71,15 +71,21 @@ class SerialReader(BaseReader):
         """
         devices: tp.List[Device] = []
         # Test all matching tty ports
-        for possible_ListPortInfo in serial.tools.list_ports.grep(tty_regex):
+        for possible_port_info in serial.tools.list_ports.grep(tty_regex):
             try:
+                discovered_tty_url = possible_port_info.device
                 # Create new Instance of the current SerialReader implementation
                 # This ensures that the internal state is reset for every discovery
-                serial_reader_implementation = self.__class__("irrelevant", possible_ListPortInfo.device, **kwargs)
+                serial_reader_implementation = self.__class__("irrelevant", discovered_tty_url, **kwargs)
                 # Utilize SubClass._discover() to handle implementation specific discovery
-                devices.append(serial_reader_implementation._discover())
-            except Exception:
-                pass
+                device = serial_reader_implementation._discover()
+                if device:
+                    devices.append(device)
+                else:
+                    info(f"No {serial_reader_implementation.PROTOCOL} Meter found at {discovered_tty_url}")
+            except Exception as err:
+                error(f"Uncaught Exception while tyring to detect {serial_reader_implementation.PROTOCOL} Meter! Please report this to the developers.")
+                raise err
         return devices
 
     @abstractmethod
