@@ -2,8 +2,10 @@
 Curses setup wizard
 """
 import logging
+import platform
 import re
 from os.path import exists
+from pathlib import Path
 from subprocess import run
 from cursesmenu import CursesMenu
 from cursesmenu.items import FunctionItem, SubmenuItem
@@ -136,11 +138,17 @@ class Wizard:
         self.menu.clear_screen()
         result = generate_yaml(self.channel_config, self.url)
         try:
-            with open('/etc/pymeterreader.yaml', 'w') as config_file:
+            prefix = Path(".")
+            if platform.system() in ["Linux", "Darwin"]:
+                prefix = Path("/etc")
+            config_path = prefix / "pymeterreader.yaml"
+            with open(config_path, "w") as config_file:
                 config_file.write(result)
-            self.menu.stdscr.addstr(0, 0, "Saved to /etc/pymeterreader.yaml")
+            self.menu.stdscr.addstr(0, 0, f"Saved to {config_path.absolute()}")
         except PermissionError:
-            self.menu.stdscr.addstr(0, 0, "Insufficient permissions: cannot write to /etc/pymeterreader.yaml")
+            self.menu.stdscr.addstr(0, 0, f"Insufficient permissions: cannot write to {config_path.absolute()}!")
+        except FileNotFoundError:
+            self.menu.stdscr.addstr(0, 0, f"Could not access path: {config_path.absolute()}!")
         self.menu.stdscr.addstr(1, 0, "(press any key)")
         self.menu.stdscr.getkey()
 
