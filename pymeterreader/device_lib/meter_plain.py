@@ -4,15 +4,16 @@ Created 2020.10.12 by Oliver Schwaneberg
 """
 import os
 import re
-from logging import info, debug, error
+from logging import info, debug, error, warning
 import typing as tp
 import serial
 from threading import Lock
 from pymeterreader.device_lib.base import BaseReader
 from pymeterreader.device_lib.common import Sample, Device, strip, Channel
+from pymeterreader.device_lib.serial_reader import SerialReader
 
 
-class PlainReader(BaseReader):
+class PlainReader(SerialReader):
     """
     Polls meters with plain text output via
     EN 62056-21:2002 compliant optical interfaces.
@@ -21,99 +22,76 @@ class PlainReader(BaseReader):
     """
     PROTOCOL = "PLAIN"
     __START_SEQ = b"/?!\x0D\x0A"
-    __SERIAL_LOCK = Lock()
 
-    def __init__(self, meter_id: str, tty='ttyUSB0', **kwargs: int):
+    def __init__(self, meter_id: str, tty: str, send_wakeup_zeros: int = 40, initial_baudrate: int = 300,
+                 baudrate: int = 2400, **kwargs):
         """
         Initialize Plain Meter Reader object
         (See https://wiki.volkszaehler.org/software/obis for OBIS code mapping)
-        :param meter_id: meter identification string (e.g. '12345678')
-        :param tty: Name or regex pattern of the tty node to use
+        :param meter_id: meter identification string (e.g. '1 EMH00 12345678')
+        :param tty: URL specifying the serial Port as required by pySerial serial_for_url()
         :param send_wakeup_zeros: number of zeros to send ahead of the request string
         :param initial_baudrate: Baudrate used to send the request
         :param baudrate: Baudrate used to read the answer
+        :kwargs: parameters for the SerialReader superclass
         """
-        super().__init__(meter_id, **kwargs)
-        self.tty_pattern = tty
-        self.tty_path = None
-        self.wakeup_zeros = kwargs.get('send_wakeup_zeros', 40)
-        self.initial_baudrate = kwargs.get('initial_baudrate', 300)
-        self.baudrate = kwargs.get('baudrate', 2400)
+        super().__init__(meter_id, tty, baudrate=initial_baudrate, **kwargs)
+        self.wakeup_zeros = send_wakeup_zeros
+        self.__initial_baudrate = initial_baudrate
+        self.__baudrate = baudrate
 
     def poll(self) -> tp.Optional[Sample]:
         """
-        Poll device
+        Public method for polling a Sample from the meter. Enforces that the meter_id matches.
         :return: Sample, if successful
         """
-        if self.tty_path is None:
-            sample = self.__probe()
-            if sample:
+        sample: Sample = self.__fetch_sample()
+        if sample:
+            if strip(self.meter_id) in strip(sample.meter_id):
                 return sample
-            error("This reader could not be bound to any device node!")
-            return None
-        response = self.__get_response(self.tty_path,
-                                       initial_baudrate=self.initial_baudrate,
-                                       baudrate=self.baudrate,
-                                       wakeup_zeros=self.wakeup_zeros)
-        if response:
-            sample = self.__parse(response)
-            return sample if sample.meter_id is not None else None
+            else:
+                warning(f"Meter ID in frame {sample.meter_id} does not match expected ID {self.meter_id}")
         return None
 
-    @staticmethod
-    def __get_response(tty, initial_baudrate: int = 300, baudrate: int = 2400, bytesize: int = 7,
-                       parity: str = 'E', stopbits: int = 1, wakeup_zeros: int = 40) -> tp.Optional[str]:
-        # pylint: disable=too-many-arguments
+    def __fetch_sample(self) -> tp.Optional[Sample]:
+        """
+        Try to retrieve a Sample from any connected meter with the current configuration
+        :return: Sample, if successful
+        """
         try:
-            with PlainReader.__SERIAL_LOCK:
-                ser = serial.Serial(tty,
-                                    baudrate=initial_baudrate, bytesize=bytesize,
-                                    parity=parity, stopbits=stopbits,
-                                    timeout=2)
-
-                # send wakeup string
-                if wakeup_zeros:
-                    ser.write(b"\x00" * wakeup_zeros)
-
-                # send request message
-                ser.write(PlainReader.__START_SEQ)
-                ser.flush()
-
-                # read identification message
-                init_msg = ser.readline()
-
-                # change baudrate
-                ser.baudrate = baudrate
-                response = ser.readline().decode('utf-8')
-                ser.close()
-            debug(f'Plain response: ({init_msg.decode("utf-8")})"{response}"')
-            return response
+            self.initialize_tty()
+            with self._tty_instance as tty:
+                # Send wakeup Sequence
+                if self.wakeup_zeros > 0:
+                    # Set wakeup baudrate
+                    tty.baudrate = self.__initial_baudrate
+                    # Send wakeup sequence
+                    tty.write(b"\x00" * self.wakeup_zeros)
+                    # Send request message
+                    tty.write(self.__START_SEQ)
+                    # Clear send buffer
+                    tty.flush()
+                    # Read identification message
+                    init_bytes: bytes = self._tty_instance.readline()
+                # Change baudrate to higher speed
+                tty.baudrate = self.__baudrate
+                # Read response
+                response_bytes: bytes = tty.readline()
+            # Decode response
+            init: str = init_bytes.decode('utf-8')
+            response: str = response_bytes.decode('utf-8')
+            debug(f'Plain response: ({init}){response}')
+            sample = self.__parse(response)
+            assert isinstance(sample, Sample), 'Parsing the response did not yield a Sample!'
+            return sample
         except UnicodeError as err:
-            error(f'Exception occurred while decoding: {err}')
-        except OSError as err:
-            error(f'Exception occurred while accessing accessing {tty}: {err}')
+            error(f'Decoding the Bytes as Unicode failed: {err}\n{response_bytes}')
+        except AssertionError as err:
+            error(f'Parsing failed: {err}')
+        except serial.SerialException as err:
+            error(f'Serial Interface error: {err}')
         return None
 
-    def __probe(self) -> tp.Optional[Sample]:
-        sp = os.path.sep
-        potential_ttys = [f'{sp}dev{sp}{file_name}'
-                          for file_name in os.listdir(f'{sp}dev{sp}')
-                          if re.match(self.tty_pattern, file_name)
-                          and f'{sp}dev{sp}{file_name}' not in self.BOUND_INTERFACES]
-        if not potential_ttys:
-            error(f"Could not find any interfaces matching r'{self.tty_pattern}'!")
-            return None
-        for tty_path in potential_ttys:
-            self.tty_path = tty_path
-            sample = self.poll()
-            if sample is not None:
-                info(f'{self.meter_id} binding to {tty_path}.')
-                return sample
-            self.tty_path = None
-            debug(f'{self.meter_id} not found at {tty_path}.')
-        error(f"Could not detect meter {self.meter_id} "
-              f"while scanning {', '.join(potential_ttys)}.")
-        return None
 
     @staticmethod
     def detect(tty=r'ttyUSB\d+', **kwargs) -> tp.List[Device]:
@@ -142,16 +120,20 @@ class PlainReader(BaseReader):
                     devices.append(device)
         return devices
 
-    def __parse(self, response) -> Sample:
+    def _discover(self) -> tp.Optional[Device]:
+        pass
+
+    def __parse(self, response: str) -> tp.Optional[Sample]:
         """
         Internal helper to extract relevant information
-        :param sml_frame: sml data from parser
+        :param response: decoded line
         """
-        parsed = Sample()
+        parsed = None
         for ident, value, unit in re.findall(r"([\d.]+)\(([\d.]+)\*?([\w\d.]+)?\)", response):
-            if not unit:
-                if strip(self.meter_id) in value:
-                    parsed.meter_id = value
+            if not parsed:
+                parsed = Sample()
+            if not unit and ident == '9.21':
+                parsed.meter_id = value
             else:
                 parsed.channels.append(Channel(ident, float(value), unit))
         return parsed
