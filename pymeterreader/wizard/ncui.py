@@ -66,7 +66,7 @@ class Wizard:
         self.menu.append_item(function_item)
 
         for meter in self.meters:
-            meter_menu = CursesMenu(f"Connect channels for meter {meter.identifier} at {meter.tty}", "By channel")
+            meter_menu = CursesMenu(f"Connect channels for meter {meter.identifier} at {meter.access_path}", "By channel")
             for channel in meter.channels:
                 map_menu = CursesMenu(f"Choose uuid for {channel.channel_name}")
                 for choice in self.gateway_channels:

@@ -33,7 +33,7 @@ class Device:
     Representation of a device
     """
     identifier: str
-    tty: str
+    access_path: str
     protocol: str
     channels: tp.List[Channel] = field(default_factory=list)
 
