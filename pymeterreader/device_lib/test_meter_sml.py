@@ -20,7 +20,7 @@ class SerialTestData:
     channels: tp.List[Channel] = field(default_factory=list)
 
 
-class SmlSimulator(Thread):
+class SmlMeterSimulator(Thread):
     """
     Simulate SML Meter that continuously sends a measurement
     """
@@ -75,7 +75,7 @@ class TestSmlReader(unittest.TestCase):
         # Create shared serial instance with unmocked import
         shared_serial_instance = serial_for_url("loop://", baudrate=9600, timeout=5)
         serial_for_url_mock.return_value = shared_serial_instance
-        simulator = SmlSimulator(SML_TEST_DATA)
+        simulator = SmlMeterSimulator(SML_TEST_DATA)
         simulator.start()
         reader = SmlReader("1EMH004921570", "loop://")
         sample = reader.poll()
@@ -105,7 +105,7 @@ class TestSmlReader(unittest.TestCase):
         shared_serial_instance = serial_for_url("loop://", baudrate=9600, timeout=5)
         serial_for_url_mock.return_value = shared_serial_instance
         # Create SmlSimulator that will be started on the second call to the list_ports_mock
-        self.simulator = SmlSimulator(SML_TEST_DATA)
+        self.simulator = SmlMeterSimulator(SML_TEST_DATA)
         # Start device detection
         devices = SmlReader("irrelevent", "unused://").detect()
         self.simulator.stop()
