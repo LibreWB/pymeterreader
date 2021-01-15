@@ -38,6 +38,7 @@ class TestSmlReader(unittest.TestCase):
         reader = SmlReader("1EMH004921570", "loop://")
         sample = reader.poll()
         simulator.stop()
+        self.assertFalse(shared_serial_instance.is_open)
         self.assertEqual(sample.meter_id, simulator.get_meter_id())
         self.assertEqual(sample.channels, simulator.get_channels())
 
@@ -67,6 +68,7 @@ class TestSmlReader(unittest.TestCase):
         # Start device detection
         devices = SmlReader("irrelevent", "unused://").detect()
         self.simulator.stop()
+        self.assertFalse(shared_serial_instance.is_open)
         self.assertEqual(len(devices), 1)
         self.assertIn(Device(self.simulator.get_meter_id(), '/dev/ttyUSB1', 'SML', self.simulator.get_channels()),
                       devices)
