@@ -16,8 +16,8 @@ class SerialReader(BaseReader):
     """
 
     @abstractmethod
-    def __init__(self, meter_id: tp.Union[str, int], tty: str, parity: str = "None", baudrate: int = 9600, bytesize: int = 8,
-                 stopbits=1, **kwargs):
+    def __init__(self, meter_id: tp.Union[str, int], tty: str, parity: str = "None", baudrate: int = 9600,
+                 bytesize: int = 8, stopbits: int = 1, timeout: int = 5, **kwargs):
         """
         Initialize Meter Reader object
         :param meter_id: meter identification string (e.g. '1 EMH00 12345678')
@@ -34,6 +34,7 @@ class SerialReader(BaseReader):
         self.baudrate = baudrate
         self.bytesize = bytesize
         self.stopbits = stopbits
+        self.timeout = timeout
         self.parity = serial.PARITY_NONE
         if 'EVEN' in parity:
             self.parity = serial.PARITY_EVEN
@@ -52,7 +53,7 @@ class SerialReader(BaseReader):
                                                        bytesize=self.bytesize,
                                                        parity=self.parity,
                                                        stopbits=self.stopbits,
-                                                       timeout=5,
+                                                       timeout=self.timeout,
                                                        do_not_open=do_not_open)
 
     def close_tty(self) -> None:
