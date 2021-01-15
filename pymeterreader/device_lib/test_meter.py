@@ -28,11 +28,19 @@ class MeterSimulator(Thread):
         super().__init__()
 
     def run(self) -> None:
+        # Store whether we need to write a response. This needs to be cached to
+        write_pending = False
         # Try to write continuously
         while self.__continue:
             try:
-                if self.wait_for_wakeup():
+                # Wait for the wakeup sequence if we have not already received a wakeup sequence but failed sending it.
+                if not write_pending:
+                    write_pending = self.wait_for_wakeup()
+                if write_pending:
+                    # Write bytes
                     self.tty.write(self.get_sample_bytes())
+                    # Reset Write pending status
+                    write_pending = False
             # Keep trying even when the serial port has not been opened or has already been closed by the reader
             except serial.PortNotOpenError:
                 pass
