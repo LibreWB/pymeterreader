@@ -1,16 +1,14 @@
+import typing as tp
 import unittest
 from dataclasses import dataclass, field
 from threading import Thread
 from time import sleep
 from unittest import mock
 from unittest.mock import DEFAULT, MagicMock, PropertyMock
-import typing as tp
-
 import serial
 import serial.tools.list_ports
 from serial import serial_for_url
 from serial.tools.list_ports_common import ListPortInfo
-
 from pymeterreader.device_lib import SmlReader
 from pymeterreader.device_lib.common import Channel, Device
 
