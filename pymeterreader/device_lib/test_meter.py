@@ -30,9 +30,9 @@ class MeterSimulator(Thread):
     def run(self) -> None:
         # Try to write continuously
         while self.__continue:
-            self.wait_for_wakeup()
             try:
-                self.tty.write(self.get_sample_bytes())
+                if self.wait_for_wakeup():
+                    self.tty.write(self.get_sample_bytes())
             # Keep trying even when the serial port has not been opened or has already been closed by the reader
             except serial.PortNotOpenError:
                 pass
@@ -42,11 +42,13 @@ class MeterSimulator(Thread):
     def stop(self):
         self.__continue = False
 
-    def wait_for_wakeup(self) -> None:
+    def wait_for_wakeup(self) -> bool:
         """
-        This method blocks until the wakeup sequence is received. The default implementation returns immediately.
+        This method blocks until the wakeup sequence is received or an error occurs.
+        The wakeup procedure was correctly executed if True is returned.
+        The default implementation returns immediately.
         """
-        return
+        return True
 
     @abstractmethod
     def get_sample_bytes(self) -> bytes:
