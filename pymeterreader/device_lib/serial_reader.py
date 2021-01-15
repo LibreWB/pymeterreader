@@ -84,7 +84,8 @@ class SerialReader(BaseReader):
                 else:
                     info(f"No {serial_reader_implementation.PROTOCOL} Meter found at {discovered_tty_url}")
             except Exception as err:
-                error(f"Uncaught Exception while tyring to detect {serial_reader_implementation.PROTOCOL} Meter! Please report this to the developers.")
+                error(f"Uncaught Exception while tyring to detect {serial_reader_implementation.PROTOCOL} Meter!"
+                      " Please report this to the developers.")
                 raise err
         return devices
 
