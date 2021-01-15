@@ -52,17 +52,17 @@ class SmlReader(SerialReader):
         try:
             self.initialize_tty()
             # Open, Use and Close tty_instance
-            with self._tty_instance:
+            with self._tty_instance as tty:
                 # Flush input buffer if more than 2 SML messages(~ 800 Bytes) are already in the buffer
-                if self._tty_instance.in_waiting > 800:
-                    self._tty_instance.reset_input_buffer()
+                if tty.in_waiting > 800:
+                    tty.reset_input_buffer()
                     debug("Flushed Input buffer")
                 # Discard Data until finding a Start Sequence in the buffer
-                self._tty_instance.read_until(expected=self.__START_SEQ)
+                tty.read_until(expected=self.__START_SEQ)
                 # Read Data up to End Sequence
-                payload = self._tty_instance.read_until(expected=self.__END_SEQ)
+                payload = tty.read_until(expected=self.__END_SEQ)
                 # Read the four subsequent Bytes(Checksum+Number of Fill Bytes)
-                trailer = self._tty_instance.read(4)
+                trailer = tty.read(4)
             # Reconstruct original SML Structure by combining the extracted sections
             sml_reconstructed = self.__START_SEQ + payload + trailer
             # Test if SML Start is well formatted
