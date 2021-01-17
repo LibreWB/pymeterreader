@@ -7,8 +7,6 @@ import re
 from logging import info, debug, error, warning
 import typing as tp
 import serial
-from threading import Lock
-from pymeterreader.device_lib.base import BaseReader
 from pymeterreader.device_lib.common import Sample, Device, strip, Channel
 from pymeterreader.device_lib.serial_reader import SerialReader
 
@@ -92,7 +90,6 @@ class PlainReader(SerialReader):
             error(f'Serial Interface error: {err}')
         return None
 
-
     @staticmethod
     def detect(**kwargs) -> tp.List[Device]:
         # Instantiate this Reader class and call SerialReader.detect_serial_devices()
@@ -108,7 +105,8 @@ class PlainReader(SerialReader):
             return Device(sample.meter_id, self.tty_url, self.PROTOCOL, sample.channels)
         return None
 
-    def __parse(self, response: str) -> tp.Optional[Sample]:
+    @staticmethod
+    def __parse(response: str) -> tp.Optional[Sample]:
         """
         Internal helper to extract relevant information
         :param response: decoded line
