@@ -94,34 +94,19 @@ class PlainReader(SerialReader):
 
 
     @staticmethod
-    def detect(tty=r'ttyUSB\d+', **kwargs) -> tp.List[Device]:
-        devices: tp.List[Device] = []
-        sp = os.path.sep
-        used_interfaces = [device.tty for device in devices]
-        potential_ttys = [f'{sp}dev{sp}{file_name}'
-                          for file_name in os.listdir(f'{sp}dev{sp}')
-                          if re.match(tty, file_name)
-                          and f'{sp}dev{sp}{file_name}' not in used_interfaces]
-        for tty_path in potential_ttys:
-            response = PlainReader.__get_response(tty_path)
-            channels: tp.List[Channel] = []
-            if response:
-                for ident, value, unit in re.findall(r"([\d.]+)\(([\d.]+)\*?([\w\d.]+)?\)", response):
-                    identifier = None
-                    if not unit:
-                        identifier = value
-                    else:
-                        channels.append(Channel(ident, value, unit))
-                if identifier:
-                    device = Device(identifier,
-                                    tty_path,
-                                    'plain',
-                                    channels)
-                    devices.append(device)
-        return devices
+    def detect(**kwargs) -> tp.List[Device]:
+        # Instantiate this Reader class and call SerialReader.detect_serial_devices()
+        # pylint: disable=W0212
+        return PlainReader("irrelevant", "loop://")._detect_serial_devices(**kwargs)
 
     def _discover(self) -> tp.Optional[Device]:
-        pass
+        """
+        Returns a Device if the class extending SerialReader can discover a meter with the configured settings
+        """
+        sample: Sample = self.__fetch_sample()
+        if sample:
+            return Device(sample.meter_id, self.tty_url, self.PROTOCOL, sample.channels)
+        return None
 
     def __parse(self, response: str) -> tp.Optional[Sample]:
         """
