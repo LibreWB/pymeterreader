@@ -57,15 +57,31 @@ class PlainMeterSimulator(StaticMeterSimulator):
         return sequence == start_sequence
 
 
+class SimplePlainMeterSimulator(StaticMeterSimulator):
+    """
+    Simulate a Plain Meter that continuously clears the receive buffer before sending a sample
+    Thus it is compatible with a loop:// interface.
+    """
+
+    def __init__(self) -> None:
+        start_sequence = b"/?!\x0D\x0A"
+        test_frame = b'\x026.8(0006047*kWh)6.26(00428.35*m3)9.21(99999999)\r\n'
+        test_data = SerialTestData(
+            start_sequence + test_frame,
+            identifier='99999999',
+            channels=[Channel(channel_name='6.8', value=6047.0, unit='kWh'), Channel(channel_name='6.26', value=428.35, unit='m3')])
+        super().__init__(test_data)
+
+
 class TestPlainReader(unittest.TestCase):
     @mock.patch('serial.serial_for_url', autospec=True)
     def test_init(self, serial_for_url_mock):
         # Create shared serial instance with unmocked import
         shared_serial_instance = serial_for_url("loop://", baudrate=9600, timeout=5)
         serial_for_url_mock.return_value = shared_serial_instance
-        simulator = PlainMeterSimulator()
+        simulator = SimplePlainMeterSimulator()
         simulator.start()
-        reader = PlainReader("1EMH004921570", "loop://")
+        reader = PlainReader("99999999", "loop://")
         sample = reader.poll()
         simulator.stop()
         self.assertEqual(sample.meter_id, simulator.get_meter_id())
@@ -73,37 +89,30 @@ class TestPlainReader(unittest.TestCase):
         return
 
     def test_init_fail(self):
-        reader = PlainReader("1EMH004921570", "loop://")
+        reader = PlainReader("99999999", "loop://")
         sample = reader.poll()
         self.assertIsNone(sample)
 
     @mock.patch('serial.tools.list_ports.grep', autospec=True)
     @mock.patch('serial.serial_for_url', autospec=True)
     def test_detect(self, serial_for_url_mock, list_ports_mock):
-        # Make list_ports_mock an instance variable
-        self.list_ports_mock = list_ports_mock
-        # Create Mock for ListPortInfo
-        list_port_mock = MagicMock()
-        device_property = PropertyMock(return_value="/dev/ttyUSB1")
-        # Add Sideeffect that starts the SmlSimulator once the device property is accessed
-        device_property.side_effect = self.start_simulator
-        # Attach property to Mock
-        type(list_port_mock).device = device_property
-        list_ports_mock.return_value = [ListPortInfo("/dev/ttyUSB0"), list_port_mock]
-        # Create shared serial instance with unmocked import
-        shared_serial_instance = serial_for_url("loop://", baudrate=9600, timeout=5)
-        serial_for_url_mock.return_value = shared_serial_instance
-        # Create SmlSimulator that will be started on the second call to the list_ports_mock
-        self.simulator = PlainMeterSimulator()
-        # Start device detection
+        # Create serial instances with unmocked import
+        unconnected_serial_instance = serial_for_url("loop://", baudrate=2400, timeout=5)
+        shared_serial_instance = serial_for_url("loop://", baudrate=2400, timeout=5)
+        # Mock serial_for_url to return an unconnected instance and one with the simulator
+        serial_for_url_mock.side_effect = [shared_serial_instance, unconnected_serial_instance, shared_serial_instance]
+        # Create a Simulator. The simulator makes the first call to serial_for_url() and receives the shared instance
+        simulator = SimplePlainMeterSimulator()
+        simulator.start()
+        # Mock available serial ports
+        list_ports_mock.return_value = [ListPortInfo("/dev/ttyUSB0"), ListPortInfo("/dev/ttyUSB1")]
+        # Start device detection. This triggers the remaining two calls to serial_for_url()
         devices = PlainReader("irrelevent", "unused://").detect()
+        simulator.stop()
+        self.assertFalse(shared_serial_instance.is_open)
         self.assertEqual(len(devices), 1)
-        self.assertIn(Device(self.simulator.get_meter_id(), '/dev/ttyUSB1', 'PLAIN', self.simulator.get_channels()),
+        self.assertIn(Device(simulator.get_meter_id(), "/dev/ttyUSB1", "PLAIN", simulator.get_channels()),
                       devices)
-
-    def start_simulator(self) -> DEFAULT:
-        self.simulator.start()
-        return DEFAULT
 
 
 if __name__ == '__main__':
