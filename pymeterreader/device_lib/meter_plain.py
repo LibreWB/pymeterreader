@@ -2,9 +2,8 @@
 Plain Reader
 Created 2020.10.12 by Oliver Schwaneberg
 """
-import os
 import re
-from logging import info, debug, error, warning
+from logging import debug, error, warning
 import typing as tp
 import serial
 from pymeterreader.device_lib.common import Sample, Device, strip, Channel
