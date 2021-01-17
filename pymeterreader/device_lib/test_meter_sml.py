@@ -1,6 +1,5 @@
 import unittest
 from unittest import mock
-from unittest.mock import DEFAULT, MagicMock, PropertyMock
 from serial import serial_for_url
 from serial.tools.list_ports_common import ListPortInfo
 from pymeterreader.device_lib import SmlReader
@@ -54,32 +53,23 @@ class TestSmlReader(unittest.TestCase):
     @mock.patch('serial.tools.list_ports.grep', autospec=True)
     @mock.patch('serial.serial_for_url', autospec=True)
     def test_detect(self, serial_for_url_mock, list_ports_mock):
-        # Make list_ports_mock an instance variable
-        self.list_ports_mock = list_ports_mock
-        # Create Mock for ListPortInfo
-        list_port_mock = MagicMock()
-        device_property = PropertyMock(return_value="/dev/ttyUSB1")
-        # Add Sideeffect that starts the SmlSimulator once the device property is accessed
-        device_property.side_effect = self.start_simulator
-        # Attach property to Mock
-        type(list_port_mock).device = device_property
-        list_ports_mock.return_value = [ListPortInfo("/dev/ttyUSB0"), list_port_mock]
-        # Create shared serial instance with unmocked import
+        # Create serial instances with unmocked import
+        unconnected_serial_instance = serial_for_url("loop://", baudrate=9600, timeout=5)
         shared_serial_instance = serial_for_url("loop://", baudrate=9600, timeout=5)
-        serial_for_url_mock.return_value = shared_serial_instance
-        # Create SmlSimulator that will be started on the second call to the list_ports_mock
-        self.simulator = SmlMeterSimulator()
-        # Start device detection
+        # Mock serial_for_url to return an unconnected instance and one with the simulator
+        serial_for_url_mock.side_effect = [shared_serial_instance, unconnected_serial_instance, shared_serial_instance]
+        # Create a Simulator. The simulator makes the first call to serial_for_url() and receives the shared instance
+        simulator = SmlMeterSimulator()
+        simulator.start()
+        # Mock available serial ports
+        list_ports_mock.return_value = [ListPortInfo("/dev/ttyUSB0"), ListPortInfo("/dev/ttyUSB1")]
+        # Start device detection. This triggers the remaining two calls to serial_for_url()
         devices = SmlReader("irrelevent", "unused://").detect()
-        self.simulator.stop()
+        simulator.stop()
         self.assertFalse(shared_serial_instance.is_open)
         self.assertEqual(len(devices), 1)
-        self.assertIn(Device(self.simulator.get_meter_id(), '/dev/ttyUSB1', 'SML', self.simulator.get_channels()),
+        self.assertIn(Device(simulator.get_meter_id(), "/dev/ttyUSB1", "SML", simulator.get_channels()),
                       devices)
-
-    def start_simulator(self) -> DEFAULT:
-        self.simulator.start()
-        return DEFAULT
 
 
 if __name__ == '__main__':
